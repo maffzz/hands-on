@@ -13,13 +13,21 @@
 | Apellidos | `usuarios.apellidos` | Dato personal | Sí (junto con nombres) | Cualquiera con acceso al API/DB | SQLite, texto plano |
 | Correo | `usuarios.correo` | Dato personal | Sí | Cualquiera con acceso al API/DB | SQLite, texto plano |
 | Teléfono | `usuarios.telefono` | Dato personal | Sí | Cualquiera con acceso al API/DB | SQLite, texto plano |
+| Fecha creación | `usuarios.creado_en` | Metadato de auditoría | Indirectamente (marca temporal) | Cualquiera con acceso al API/DB | SQLite, texto plano |
 
-**Flujo:** el cliente envía los datos por `POST /registro` → se insertan en `usuarios` → `GET /usuarios` devuelve todos los registros sin autenticación.
+**Flujo:** el cliente envía los datos por `POST /registro` → se insertan en `usuarios` → `GET /registros` (y `GET /usuarios`) devuelve todos los registros sin autenticación.
+
+**Prueba con personas ficticias y lo que incomoda al ver `GET /registros`:**
+Se registraron 4 personas inventadas (`Ana Quispe`, `Carlos Mendoza`, `Lucía Vargas`, `Luis García`) y al invocar `GET /registros` se evidenció lo siguiente:
+1. **Fuga total de privacidad:** Cualquier usuario o atacante externo puede volcar la base de datos completa con una simple petición HTTP sin credenciales ni tokens.
+2. **Exposición indiscriminada de datos de contacto:** Correos y números celulares personales quedan a la vista de terceros, facilitando phishing, acoso, SIM swapping o spam telefónico.
+3. **Ausencia de propósito y consentimiento:** La base de datos guarda información sin registrar cuándo ni para qué la persona autorizó el tratamiento, ni qué versión de política aceptó.
+4. **Falta de granularidad:** El endpoint devuelve todo el contenido de la tabla sin filtros, paginación ni separación por perfiles o roles.
 
 **Hechos observables del backend actual:**
 - No hay captura de consentimiento ni de finalidad.
 - No hay autenticación ni autorización en ningún endpoint.
-- `GET /usuarios` expone todos los datos de todos los usuarios.
+- `GET /registros` expone todos los datos de todos los usuarios.
 - Los datos se guardan en texto plano; no hay cifrado, retención ni borrado.
 - No hay endpoints para consultar, corregir ni eliminar datos propios.
 - No hay validación de formato de correo o teléfono.
@@ -151,4 +159,5 @@ Si se cumplen RD-01 a RD-21, los riesgos críticos (R1, R2) bajan a **Bajo/Medio
 
 | Rol | Nombre | Fecha |
 |---|---|---|
-| Elaborado por | Mafer Lazón | 2026-10-23 |
+| Elaborado por | María Fernanda Lazón Meza | 2026-10-23 |
+| Elaborado por | Christopher Renato Pérez Torres | 2026-10-23 |

@@ -25,22 +25,22 @@ La aplicación incluye:
 
 | Archivo o carpeta | Descripción |
 |---|---|
-| `backend/app.py` | Backend Flask con `GET /` y `POST /registro`, además de `GET /usuarios` |
+| `backend/app.py` | Backend Flask con `GET /`, `POST /registro`, y endpoints de listado `GET /registros` / `GET /usuarios` |
 | `backend/schema.sql` | Definición de la tabla `usuarios` |
 | `backend/requirements.txt` | Dependencias del proyecto |
-| `backend/DPIA.md` | Documento de evaluación de impacto en protección de datos |
+| `backend/DPIA.md` | Documento de evaluación de impacto en protección de datos (DPIA) |
 | `frontend/index.html` | Formulario web para registrar usuarios |
 | `README.md` | Documentación del proyecto |
 
 ## Cómo correrlo
 
-Desde la carpeta `backend`:
+Desde la raíz o desde la carpeta `backend`:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-python app.py
+pip install -r backend/requirements.txt
+python backend/app.py
 ```
 
 La aplicación queda disponible en:
@@ -50,28 +50,44 @@ La aplicación queda disponible en:
 Si el puerto 5000 está ocupado, se puede ejecutar con:
 
 ```bash
-PORT=5001 python app.py
+PORT=5001 python backend/app.py
 ```
 
 ## Probar la API
 
-### Registrar un usuario
+### Registrar un usuario (POST /registro)
 
+Ejemplo con teléfono:
 ```bash
 curl -X POST http://localhost:5000/registro \
   -H "Content-Type: application/json" \
   -d '{"nombres":"Ana","apellidos":"Pérez","correo":"ana@example.com","telefono":"999111222"}'
 ```
 
-### Listar usuarios
-
+Ejemplo con teléfono opcional (ejemplo de la diapositiva):
 ```bash
-curl http://localhost:5000/usuarios
+curl -X POST http://localhost:5000/registro \
+  -H "Content-Type: application/json" \
+  -d '{"nombres":"Ana","apellidos":"Quispe","correo":"ana@correo.pe"}'
 ```
 
-## Observaciones de privacidad
+### Listar registros (GET /registros o GET /usuarios)
 
-Este proyecto no implementa buenas prácticas de protección de datos como:
+```bash
+curl http://localhost:5000/registros
+```
+
+## Datos de prueba y hallazgos iniciales (Paso 1)
+
+Antes de redactar la DPIA, se insertaron 4 personas inventadas (`Ana Quispe`, `Carlos Mendoza`, `Lucía Vargas`, `Luis García`) y se consultó `GET /registros`. Lo que resultó problemático/incómodo:
+1. **Acceso público y sin barreras:** Cualquier persona puede ver todos los registros sin requerir login ni roles.
+2. **Exposición de datos de contacto:** Celulares y correos personales quedan al descubierto.
+3. **Sin trazabilidad de consentimiento:** No se sabe para qué se recogió la información ni si el titular aceptó una política.
+4. **Almacenamiento plano:** La base de datos guarda todo sin cifrado ni minimización.
+
+## Observaciones de privacidad y DPIA
+
+Este proyecto no implementa deliberadamente buenas prácticas de protección de datos:
 - minimización de datos
 - cifrado de información sensible
 - control de acceso
@@ -79,10 +95,17 @@ Este proyecto no implementa buenas prácticas de protección de datos como:
 - auditoría o trazabilidad
 - consentimiento explícito y revocación
 
-Es un caso intencionalmente débil para fines de análisis de DPIA.
+Todo el análisis de riesgos y las restricciones de diseño para subsanarlo se detallan en [backend/DPIA.md](backend/DPIA.md).
+
+## Paso 3 y 4: Revisión Cruzada
+
+| Sección | Detalle |
+|---|---|
+| **Grupo revisado** | Grupo X (completar al realizar la revisión) |
+| **Revisión recibida de** | Grupo Y (pegar comentarios recibidos del otro grupo aquí) |
+| **Estado de entrega** | Repositorio + DPIA + Revisión lista para entrega |
 
 ## Integrantes
 
 - María Fernanda Lazón Meza
-- Christopher Renato Pérez Torres
-- 
+- Christopher Renato Pérez Torres 

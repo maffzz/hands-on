@@ -28,8 +28,8 @@
     <label for="correo">Correo</label>
     <input id="correo" name="correo" type="email" required>
 
-    <label for="telefono">Teléfono</label>
-    <input id="telefono" name="telefono" type="tel" required>
+    <label for="telefono">Teléfono (opcional)</label>
+    <input id="telefono" name="telefono" type="tel">
 
     <button type="submit">Registrarme</button>
   </form>
@@ -78,7 +78,7 @@
         const tr = document.createElement("tr");
         for (const k of ["id", "nombres", "apellidos", "correo", "telefono"]) {
           const td = document.createElement("td");
-          td.textContent = u[k];
+          td.textContent = u[k] ?? "-";
           tr.appendChild(td);
         }
         tbody.appendChild(tr);

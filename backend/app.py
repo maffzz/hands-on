@@ -13,6 +13,7 @@ from flask import Flask, jsonify, request, send_from_directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 DB_PATH = BASE_DIR / "backend" / "usuarios.db"
+SCHEMA_PATH = BASE_DIR / "backend" / "schema.sql"
 PORT = int(os.environ.get("PORT", "5000"))
 
 app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
@@ -30,7 +31,7 @@ def get_db():
 
 
 def init_db():
-    with open("schema.sql", encoding="utf-8") as f:
+    with open(SCHEMA_PATH, encoding="utf-8") as f:
         conn = get_db()
         conn.executescript(f.read())
         conn.commit()
@@ -40,22 +41,23 @@ def init_db():
 @app.post("/registro")
 def registro():
     data = request.get_json(silent=True) or {}
-    campos = ["nombres", "apellidos", "correo", "telefono"]
-    faltan = [c for c in campos if not data.get(c)]
+    obligatorios = ["nombres", "apellidos", "correo"]
+    faltan = [c for c in obligatorios if not data.get(c)]
     if faltan:
-        return jsonify({"error": f"Faltan campos: {', '.join(faltan)}"}), 400
+        return jsonify({"error": f"Faltan campos obligatorios: {', '.join(faltan)}"}), 400
 
     conn = get_db()
     cur = conn.execute(
         "INSERT INTO usuarios (nombres, apellidos, correo, telefono) VALUES (?, ?, ?, ?)",
-        (data["nombres"], data["apellidos"], data["correo"], data["telefono"]),
+        (data["nombres"], data["apellidos"], data["correo"], data.get("telefono")),
     )
     conn.commit()
     nuevo_id = cur.lastrowid
     conn.close()
-    return jsonify({"id": nuevo_id, "mensaje": "Registrado"}), 201
+    return jsonify({"ok": True, "id": nuevo_id, "mensaje": "Registrado"}), 201
 
 
+@app.get("/registros")
 @app.get("/usuarios")
 def listado():
     conn = get_db()

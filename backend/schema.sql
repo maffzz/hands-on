@@ -3,5 +3,6 @@ CREATE TABLE IF NOT EXISTS usuarios (
     nombres   TEXT NOT NULL,
     apellidos TEXT NOT NULL,
     correo    TEXT NOT NULL,
-    telefono  TEXT NOT NULL
+    telefono  TEXT,
+    creado_en TEXT DEFAULT CURRENT_TIMESTAMP
 );
