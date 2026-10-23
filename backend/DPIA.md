@@ -19,7 +19,7 @@
 | `telefono` | Contacto alternativo o emergencias | No | Consentimiento explícito | Hasta la baja o solicitud de retiro | Titular, Administrador | **Dudoso / No**: Debe ser opcional o suprimirse si no hay caso de uso crítico |
 | `creado_en` | Auditoría de creación del registro | Automático | Interés legítimo / Seguridad del sistema | Ciclo de vida del registro | Sistema, Administrador | Sí |
 
-> **Principio clave:** El mismo dato (por ejemplo, el correo) puede tener múltiples finalidades con bases legales distintas. Por ende, el consentimiento debe recabarse y gestionarse **por finalidad**, no de forma genérica por campo.
+> **Principio clave:** Un mismo dato, como el correo, puede utilizarse para diferentes fines. Por eso, el consentimiento para recibir publicidad debe solicitarse por separado y no mezclarse con la aceptación necesaria para utilizar el servicio.
 
 ### 2. Flujo actual de los datos en el sistema
 1. El usuario ingresa sus datos en el formulario web (`frontend/index.html`) o envía un JSON vía `POST /registro`.
@@ -42,7 +42,7 @@ Se cargaron 4 registros ficticios (`Ana Quispe`, `Carlos Mendoza`, `Lucía Varga
 
 ---
 
-## Paso 2c · Riesgos identificados (Probabilidad × Impacto - Marco LINDDUN)
+## Paso 2c · Riesgos identificados (Probabilidad × Impacto)
 
 Matriz de evaluación: Probabilidad (Baja, Media, Alta) × Impacto (Bajo, Medio, Alto) $\rightarrow$ Nivel de Riesgo (Bajo, Medio, Alto).
 
@@ -62,7 +62,7 @@ Matriz de evaluación: Probabilidad (Baja, Media, Alta) × Impacto (Bajo, Medio,
 
 Cada riesgo Alto o Medio cuenta con una restricción verificable (un tercero puede comprobar objetivamente si se cumple o no mirando el código, la API o la base de datos).
 
-| ID | Restricción de diseño (verificable) | Mitiga | Capa | Prioridad |
+| ID | Restricción de diseño | Mitiga | Capa | Prioridad |
 |---|---|---|---|---|
 | **C-01** | `GET /registros` debe requerir autenticación JWT con rol `admin` y entregar datos de contacto enmascarados (ej. `a***@correo.pe`, `999***222`). Se implementa `GET /me` para que cada usuario consulte únicamente su propio perfil tras autenticarse. | R1 | API / Backend | Antes de lanzar |
 | **C-02** | Los campos `correo` y `telefono` deben almacenarse cifrados en reposo mediante AES-256-GCM. La clave criptográfica debe residir en variables de entorno o gestor de secretos (nunca en el repositorio). Para búsquedas por correo se usará un hash determinístico HMAC separado. | R2 | BD, API, Configuración | Antes de lanzar |
@@ -76,7 +76,7 @@ Cada riesgo Alto o Medio cuenta con una restricción verificable (un tercero pue
 
 ## Cobertura integral del checklist de privacidad
 
-Para dar cumplimiento formal al checklist del curso, las restricciones anteriores y sus extensiones cubren los 21 puntos normativos:
+Las restricciones anteriores y sus extensiones cubren los 21 puntos normativos:
 
 | # | Ítem del checklist | Restricción asociada |
 |---|---|---|
@@ -133,4 +133,4 @@ Para dar cumplimiento formal al checklist del curso, las restricciones anteriore
 | **Responsable de Privacidad y Desarrollo** | María Fernanda Lazón Meza | Aprobado | 2026-10-23 |
 | **Responsable de Seguridad y Arquitectura** | Christopher Renato Pérez Torres | Aprobado | 2026-10-23 |
 
-*Nota: Una DPIA sin responsable identificado no tiene validez legal ni metodológica.*
+
