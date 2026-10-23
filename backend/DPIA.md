@@ -122,7 +122,7 @@ Las restricciones anteriores y sus extensiones cubren los 21 puntos normativos:
 
 ### 2. La decisión, en una línea
 
-> **Decisión:** **Se puede lanzar con condiciones:** No se puede operar en producción ni recopilar datos personales reales hasta que las restricciones críticas **C-01, C-02, C-03, C-04 y C-07** estén completamente implementadas y verificadas en el sistema.
+> Se puede lanzar con condiciones. El sistema no debe utilizarse en producción ni recopilar datos personales reales hasta que las medidas críticas C-01, C-02, C-03, C-04 y C-07 estén implementadas y verificadas. También deben completarse las demás medidas antes de considerar que el sistema cumple con todos los requisitos de privacidad.
 
 ---
 
