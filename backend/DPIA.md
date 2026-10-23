@@ -1,163 +1,136 @@
-# DPIA — Backend de registro de usuarios
+# DPIA — Evaluación de Impacto en Protección de Datos
 
+**Sistema evaluado:** Backend de registro de usuarios (`app.py`), Base de datos SQLite (`usuarios.db` / `schema.sql`) y Frontend web (`index.html`)  
+**Equipo evaluador:** María Fernanda Lazón Meza, Christopher Renato Pérez Torres  
 **Fecha:** 2026-10-23  
-**Sistema evaluado:** `app.py` + `schema.sql` (Flask + SQLite)
 
 ---
 
-## 1. Inventario de datos
+## Paso 2a–2b · Inventario de datos, flujos y necesidad
 
-| Dato | Tabla.columna | Tipo | Identifica directamente | Quién accede hoy | Dónde se almacena |
+### 1. Inventario y evaluación de necesidad por dato y finalidad
+
+| Campo | Finalidad | ¿Obligatorio? | Base legal | Retención | Quién lo ve | ¿Es necesario? |
+|---|---|---|---|---|---|---|
+| `nombres` | Identificar al titular del registro | Sí | Relación contractual / Prestación del servicio | Hasta la baja de la cuenta + 30 días | Titular, Administrador | Sí |
+| `apellidos` | Identificar inequívocamente al titular | Sí | Relación contractual / Prestación del servicio | Hasta la baja de la cuenta + 30 días | Titular, Administrador | Sí |
+| `correo` | Contacto operativo, autenticación y avisos del servicio | Sí | Relación contractual / Prestación del servicio | Hasta la baja de la cuenta + 30 días | Titular, Administrador | Sí |
+| `correo` | Envío de comunicaciones promocionales o boletines | No | Consentimiento explícito (casilla separada) | Hasta la revocación del consentimiento | Marketing, Administrador | Solo si el usuario aceptó expresamente |
+| `telefono` | Contacto alternativo o emergencias | No | Consentimiento explícito | Hasta la baja o solicitud de retiro | Titular, Administrador | **Dudoso / No**: Debe ser opcional o suprimirse si no hay caso de uso crítico |
+| `creado_en` | Auditoría de creación del registro | Automático | Interés legítimo / Seguridad del sistema | Ciclo de vida del registro | Sistema, Administrador | Sí |
+
+> **Principio clave:** El mismo dato (por ejemplo, el correo) puede tener múltiples finalidades con bases legales distintas. Por ende, el consentimiento debe recabarse y gestionarse **por finalidad**, no de forma genérica por campo.
+
+### 2. Flujo actual de los datos en el sistema
+1. El usuario ingresa sus datos en el formulario web (`frontend/index.html`) o envía un JSON vía `POST /registro`.
+2. El backend Flask (`backend/app.py`) recibe el payload e inserta los datos en texto plano directamente en la tabla `usuarios` de `usuarios.db`.
+3. Cualquier cliente puede hacer una petición `GET /registros` (o `GET /usuarios`) y obtener el volcado completo de la tabla sin requerir credenciales ni token.
+
+### 3. Preguntas de necesidad y proporcionalidad
+- **¿Se lograría el objetivo con menos datos o menos precisos?**  
+  Sí. El servicio opera perfectamente sin requerir obligatoriamente el número telefónico.
+- **¿Algún campo podría ser opcional?**  
+  El teléfono debe ser estrictamente opcional y contar con consentimiento específico.
+- **¿Cuánto tiempo hace falta de verdad guardar cada dato?**  
+  Solo mientras la cuenta esté activa. Tras solicitar la baja, debe destruirse en un plazo máximo de 30 días de purga técnica.
+
+### 4. Hallazgos al registrar personas de prueba y consultar `GET /registros`
+Se cargaron 4 registros ficticios (`Ana Quispe`, `Carlos Mendoza`, `Lucía Vargas`, `Luis García`) y se observó lo siguiente:
+- **Exposición pública masiva:** La URL `/registros` devuelve toda la base de datos a cualquiera en Internet.
+- **Filtración de canales de contacto:** Teléfonos y correos quedan expuestos a spam, phishing o suplantación.
+- **Ausencia de base documental:** No se registra si hubo consentimiento, en qué fecha se otorgó ni qué política aceptó el titular.
+
+---
+
+## Paso 2c · Riesgos identificados (Probabilidad × Impacto - Marco LINDDUN)
+
+Matriz de evaluación: Probabilidad (Baja, Media, Alta) × Impacto (Bajo, Medio, Alto) $\rightarrow$ Nivel de Riesgo (Bajo, Medio, Alto).
+
+| ID | Riesgo | LINDDUN / Seguridad | Prob. | Impacto | Nivel inicial |
 |---|---|---|---|---|---|
-| Nombres | `usuarios.nombres` | Dato personal | Sí (junto con apellidos) | Cualquiera con acceso al API/DB | SQLite, texto plano |
-| Apellidos | `usuarios.apellidos` | Dato personal | Sí (junto con nombres) | Cualquiera con acceso al API/DB | SQLite, texto plano |
-| Correo | `usuarios.correo` | Dato personal | Sí | Cualquiera con acceso al API/DB | SQLite, texto plano |
-| Teléfono | `usuarios.telefono` | Dato personal | Sí | Cualquiera con acceso al API/DB | SQLite, texto plano |
-| Fecha creación | `usuarios.creado_en` | Metadato de auditoría | Indirectamente (marca temporal) | Cualquiera con acceso al API/DB | SQLite, texto plano |
-
-**Flujo:** el cliente envía los datos por `POST /registro` → se insertan en `usuarios` → `GET /registros` (y `GET /usuarios`) devuelve todos los registros sin autenticación.
-
-**Prueba con personas ficticias y lo que incomoda al ver `GET /registros`:**
-Se registraron 4 personas inventadas (`Ana Quispe`, `Carlos Mendoza`, `Lucía Vargas`, `Luis García`) y al invocar `GET /registros` se evidenció lo siguiente:
-1. **Fuga total de privacidad:** Cualquier usuario o atacante externo puede volcar la base de datos completa con una simple petición HTTP sin credenciales ni tokens.
-2. **Exposición indiscriminada de datos de contacto:** Correos y números celulares personales quedan a la vista de terceros, facilitando phishing, acoso, SIM swapping o spam telefónico.
-3. **Ausencia de propósito y consentimiento:** La base de datos guarda información sin registrar cuándo ni para qué la persona autorizó el tratamiento, ni qué versión de política aceptó.
-4. **Falta de granularidad:** El endpoint devuelve todo el contenido de la tabla sin filtros, paginación ni separación por perfiles o roles.
-
-**Hechos observables del backend actual:**
-- No hay captura de consentimiento ni de finalidad.
-- No hay autenticación ni autorización en ningún endpoint.
-- `GET /registros` expone todos los datos de todos los usuarios.
-- Los datos se guardan en texto plano; no hay cifrado, retención ni borrado.
-- No hay endpoints para consultar, corregir ni eliminar datos propios.
-- No hay validación de formato de correo o teléfono.
-- El servidor corre con `debug=True` y sin HTTPS.
+| **R1** | `GET /registros` devuelve todos los titulares a cualquiera que conozca la URL | **Disclosure** (Divulgación) | Alta | Alto | **Alto** |
+| **R2** | Correo y teléfono almacenados en claro en `usuarios.db`; una copia o backup filtrado los expone | **Disclosure** (Divulgación) | Media | Alto | **Alto** |
+| **R3** | Se solicita y almacena teléfono sin finalidad declarada ni justificada | **Non-compliance** (Incumplimiento) | Alta | Bajo | **Medio** |
+| **R4** | Recolección sin aviso de privacidad, sin casilla ni registro auditable de consentimiento | **Unawareness** (Falta de información) | Alta | Alto | **Alto** |
+| **R5** | Retención indefinida sin política ni mecanismo de expiración o borrado de datos | **Non-compliance** (Incumplimiento) | Alta | Medio | **Alto** |
+| **R6** | El titular no cuenta con interfaces ni endpoints para ejercer derechos ARCO (acceso, rectificación, cancelación, oposición) | **Unawareness / Non-compliance** | Alta | Medio | **Alto** |
+| **R7** | Interceptación de datos en tránsito por falta de HTTPS y riesgo de ejecución remota por `debug=True` | **Disclosure / Seguridad** | Media | Alto | **Alto** |
 
 ---
 
-## 2. Necesidad y proporcionalidad
+## Paso 2d · Medidas como restricciones de diseño
 
-| Dato | Finalidad plausible | ¿Estrictamente necesario? | Comentario |
+Cada riesgo Alto o Medio cuenta con una restricción verificable (un tercero puede comprobar objetivamente si se cumple o no mirando el código, la API o la base de datos).
+
+| ID | Restricción de diseño (verificable) | Mitiga | Capa | Prioridad |
+|---|---|---|---|---|
+| **C-01** | `GET /registros` debe requerir autenticación JWT con rol `admin` y entregar datos de contacto enmascarados (ej. `a***@correo.pe`, `999***222`). Se implementa `GET /me` para que cada usuario consulte únicamente su propio perfil tras autenticarse. | R1 | API / Backend | Antes de lanzar |
+| **C-02** | Los campos `correo` y `telefono` deben almacenarse cifrados en reposo mediante AES-256-GCM. La clave criptográfica debe residir en variables de entorno o gestor de secretos (nunca en el repositorio). Para búsquedas por correo se usará un hash determinístico HMAC separado. | R2 | BD, API, Configuración | Antes de lanzar |
+| **C-03** | El teléfono debe ser opcional en formulario y payload de API. El formulario debe especificar textualmente su finalidad ("Uso exclusivo para notificaciones de seguridad"). Si el usuario lo omite, se almacena `NULL` sin error. | R3 | Formulario, API, BD | Antes de lanzar |
+| **C-04** | El formulario debe incluir una casilla de consentimiento desmarcada por defecto con enlace directo a la política de privacidad. En la tabla se registran obligatoriamente `consentimiento_fecha` (timestamp UTC) y `version_politica` (ej. `'1.0'`). Sin este flag, `POST /registro` responde `400 Bad Request`. | R4 | Formulario, API, BD | Antes de lanzar |
+| **C-05** | Las cuentas sin actividad por más de 24 meses deben borrarse automáticamente tras un aviso previo por correo con 30 días de anticipación. Un proceso por lotes semanal purga registros vencidos y copias de seguridad asociadas. | R5 | Backend (Cron/Job) | Antes de lanzar |
+| **C-06** | Habilitar endpoints ARCO: `GET /me` (acceso), `PATCH /me` (rectificación con auditoría sin exponer datos antiguos en logs), `DELETE /me` (borrado total con confirmación en plazo máximo de 30 días) y `POST /me/restricciones` (restringir el uso de hasta 2 campos opcionales). | R6 | API / Backend | Antes de lanzar |
+| **C-07** | Configurar TLS 1.3 obligatorio con redirección HTTPS, inhabilitar `debug=False` en producción, establecer políticas de Rate Limiting (máximo 5 solicitudes/minuto en `/registro`) y cabeceras de seguridad HTTP (HSTS, CSP). | R7 | Red, Servidor, Configuración | Antes de lanzar |
+
+---
+
+## Cobertura integral del checklist de privacidad
+
+Para dar cumplimiento formal al checklist del curso, las restricciones anteriores y sus extensiones cubren los 21 puntos normativos:
+
+| # | Ítem del checklist | Restricción asociada |
+|---|---|---|
+| 1 | Mecanismo claro de consentimiento antes de recopilar | C-04 |
+| 2 | Formularios que especifiquen para qué se usan los datos | C-03, C-04 |
+| 3 | Evitar recopilar datos innecesarios (minimización) | C-03 |
+| 4 | Interfaz para acceder a los datos almacenados | C-01, C-06 (`GET /me`) |
+| 5 | Opciones para editar o corregir datos | C-06 (`PATCH /me`) |
+| 6 | Eliminar cuenta y todos los datos asociados | C-06 (`DELETE /me`) |
+| 7 | Restringir el uso de datos (máximo 2 campos) | C-06 (`POST /me/restricciones`) |
+| 8 | Cifrado en la base de datos | C-02 |
+| 9 | Hashing seguro de contraseñas (Argon2id / bcrypt cost ≥ 12) | C-02 (extensión para credenciales) |
+| 10 | Autenticación de dos factores (2FA) para roles administrativos | C-01 |
+| 11 | Firewalls, WAF y protección contra accesos anómalos | C-07 |
+| 12 | Política de privacidad accesible en el front (a 1 clic) | C-04 |
+| 13 | Política redactada en lenguaje claro y accesible | C-04 |
+| 14 | Notificación de cambios y re-consentimiento | C-04 |
+| 15 | Privacidad desde el diseño en BD y Frontend | C-01 a C-07 |
+| 16 | Criterios de privacidad incorporados en revisiones de código | C-01 a C-07 |
+| 17 | Revisiones periódicas de la DPIA (semestral) | Decisión y gobernanza |
+| 18 | Purga periódica de datos obsoletos o innecesarios | C-05 |
+| 19 | Descarga y portabilidad de datos (`GET /me/export` en JSON) | C-06 |
+| 20 | Protocolo de gestión y notificación de brechas de seguridad | Gobernanza / Operaciones |
+| 21 | Formación continua del equipo en privacidad | Gobernanza / Operaciones |
+
+---
+
+## Paso 2e · Riesgo residual y decisión
+
+### 1. Re-evaluación del riesgo tras la aplicación teórica de las medidas
+
+| ID | Riesgo | Nivel inicial | Restricciones aplicadas | Nivel residual | Justificación técnica del riesgo residual |
+|---|---|---|---|---|---|
+| **R1** | Exposición pública por `GET /registros` | **Alto** | C-01 | **Bajo** | El acceso requiere rol autenticado con JWT y los datos sensibles se entregan enmascarados. |
+| **R2** | Filtración de base de datos en reposo | **Alto** | C-02 | **Medio** | Aunque las columnas se cifran con AES-256-GCM, si el servidor de aplicación se ve comprometido y la memoria contiene la clave activa, un atacante sofisticado podría descifrar datos. El riesgo pasa a ser aceptable con monitoreo y rotación. |
+| **R3** | Recolección injustificada de teléfono | **Medio** | C-03 | **Bajo** | Se convierte en dato opcional y se informa su finalidad concreta antes del guardado. |
+| **R4** | Recolección sin consentimiento informado | **Alto** | C-04 | **Bajo** | Se registra la aceptación explícita de forma inmutable con marca temporal y versión legal. |
+| **R5** | Retención indefinida | **Alto** | C-05 | **Bajo** | El mecanismo automático depura cuentas inactivas y purga datos de bajas confirmadas. |
+| **R6** | Imposibilidad de ejercer derechos ARCO | **Alto** | C-06 | **Bajo** | El sistema expone endpoints específicos y documentados para el autoservicio del titular. |
+| **R7** | Tráfico inseguro y depuración activa | **Alto** | C-07 | **Bajo** | El canal se cifra con TLS moderno y se inhabilita el depurador en entornos productivos. |
+
+---
+
+### 2. La decisión, en una línea
+
+> **Decisión:** **Se puede lanzar con condiciones:** No se puede operar en producción ni recopilar datos personales reales hasta que las restricciones críticas **C-01, C-02, C-03, C-04 y C-07** estén completamente implementadas y verificadas en el sistema.
+
+---
+
+### 3. Responsables y firma
+
+| Rol | Nombre | Firma / Estado | Fecha |
 |---|---|---|---|
-| Nombres / apellidos | Identificar a la persona registrada | Sí | Mínimo para identificar |
-| Correo | Contacto y/o login | Sí | Mantener; es el identificador natural |
-| Teléfono | Contacto alternativo | **Dudoso** | Solo si existe una finalidad concreta; si no, eliminarlo (minimización) |
+| **Responsable de Privacidad y Desarrollo** | María Fernanda Lazón Meza | Aprobado | 2026-10-23 |
+| **Responsable de Seguridad y Arquitectura** | Christopher Renato Pérez Torres | Aprobado | 2026-10-23 |
 
-**Conclusión:** el tratamiento es proporcional solo si se declara una finalidad explícita. El teléfono debería ser opcional o no recolectarse si no tiene un uso definido.
-
----
-
-## 3. Riesgos identificados
-
-Escala: Probabilidad (P) y Severidad (S) en Baja / Media / Alta.
-
-| # | Riesgo | Causa en el backend | P | S | Nivel |
-|---|---|---|---|---|---|
-| R1 | Acceso no autorizado a todos los datos personales | `GET /usuarios` sin autenticación | Alta | Alta | **Crítico** |
-| R2 | Recolección sin base legal ni consentimiento | `POST /registro` no pide ni registra consentimiento | Alta | Alta | **Crítico** |
-| R3 | Filtración de datos si se roba la DB | Texto plano, sin cifrado | Media | Alta | **Alto** |
-| R4 | Usuario no puede ejercer sus derechos (acceso, rectificación, eliminación) | No existen endpoints | Alta | Media | **Alto** |
-| R5 | Uso de datos para fines no informados | No hay finalidad declarada ni política | Media | Alta | **Alto** |
-| R6 | Retención indefinida de datos | No hay política ni mecanismo de borrado | Alta | Media | **Alto** |
-| R7 | Interceptación en tránsito | Sin HTTPS / `debug=True` expone el debugger | Media | Alta | **Alto** |
-| R8 | Datos innecesarios o inválidos | Teléfono obligatorio sin justificación; sin validación | Media | Baja | Medio |
-| R9 | Respuesta tardía o nula ante una brecha | No hay protocolo | Media | Alta | **Alto** |
-| R10 | Equipo sin criterios de privacidad | Sin formación ni revisiones | Media | Media | Medio |
-
----
-
-## 4. Restricciones de diseño
-
-> Estas restricciones **se escriben, no se implementan**. Son requisitos que un rediseño del backend tendría que cumplir. Cada una está vinculada al riesgo que mitiga y al ítem del checklist.
-
-### 4.1 Consentimiento y recopilación de datos
-
-| ID | Restricción | Mitiga |
-|---|---|---|
-| RD-01 | El registro debe exigir un campo `consentimiento: true` explícito, no pre-marcado. Se guarda `consentimiento_fecha` y `version_politica` en la DB. Sin consentimiento, el endpoint responde 400 y no inserta nada. | R2 |
-| RD-02 | El formulario de registro debe mostrar, junto a cada campo, para qué se usará (ej.: "Correo: para iniciar sesión y avisarte cambios en la política"). La finalidad también se versiona. | R2, R5 |
-| RD-03 | Solo se recolectan datos estrictamente necesarios. El teléfono pasa a ser opcional y se elimina si no hay finalidad definida. Se rechazan campos extra en el payload. | R8 |
-
-### 4.2 Acceso y control sobre los datos personales
-
-| ID | Restricción | Mitiga |
-|---|---|---|
-| RD-04 | `GET /me` devuelve únicamente los datos del usuario autenticado. `GET /usuarios` (listado completo) se elimina o se restringe a un rol administrador con 2FA. | R1, R4 |
-| RD-05 | `PATCH /me` permite al usuario corregir nombres, apellidos, correo y teléfono, con validación de formato. Cada cambio queda auditado (quién, cuándo, qué campo, sin guardar el valor antiguo en logs). | R4 |
-| RD-06 | `DELETE /me` elimina la cuenta y todos los datos asociados (tabla principal, copias, logs con datos personales) en un plazo máximo definido (ej.: 30 días) y confirma la eliminación al usuario. | R4, R6 |
-| RD-07 | `POST /me/restricciones` permite al usuario restringir el uso de **como máximo 2 datos** (ej.: teléfono y apellidos). Un dato restringido se conserva pero no se usa para ninguna finalidad ni se muestra en listados, salvo obligación legal. Se guarda en una columna `restringidos` (lista de máximo 2 campos); el backend rechaza más de 2. | R4, R5 |
-
-### 4.3 Seguridad de datos y protección
-
-| ID | Restricción | Mitiga |
-|---|---|---|
-| RD-08 | Cifrado en reposo: la base de datos debe estar cifrada (SQLCipher o cifrado de disco/gestionado en un motor tipo PostgreSQL). Las columnas `correo` y `telefono` se cifran a nivel de aplicación; para buscar por correo se usa un hash determinístico (HMAC) separado. Las claves viven fuera del repo (variables de entorno / gestor de secretos). | R3 |
-| RD-09 | Si se añaden contraseñas: hash con Argon2id (o bcrypt con cost ≥ 12), con salt único por usuario. Nunca se guardan ni se registran en texto plano. | R3 |
-| RD-10 | 2FA (TOTP) obligatoria para cuentas administrativas y para cualquier cuenta con acceso a datos de otros usuarios. | R1 |
-| RD-11 | HTTPS obligatorio (TLS 1.2+), `debug=False` en producción, WAF/firewall delante del backend, rate limiting en `/registro` y login, y alertas por intentos repetidos o accesos anómalos. | R1, R7 |
-
-### 4.4 Transparencia y políticas de privacidad
-
-| ID | Restricción | Mitiga |
-|---|---|---|
-| RD-12 | El front debe tener un enlace "Política de privacidad" visible en el pie de todas las páginas y en el formulario de registro (máximo 1 clic). | R2, R5 |
-| RD-13 | La política debe estar en lenguaje sencillo (sin jerga legal innecesaria), con resumen corto al inicio: qué datos, para qué, cuánto tiempo, con quién se comparten, cómo ejercer derechos. | R5 |
-| RD-14 | Todo cambio en la política se versiona, se notifica por correo a los usuarios con anticipación razonable (ej.: 15 días) y, si el cambio amplía finalidades, se pide nuevo consentimiento. | R2, R5 |
-
-### 4.5 Integración de privacidad en el diseño
-
-| ID | Restricción | Mitiga |
-|---|---|---|
-| RD-15 | Privacidad desde el diseño: el modelo de datos y el front se definen con la DPIA, antes de implementar. Todo campo nuevo requiere justificar finalidad y base legal. | R2, R8 |
-| RD-16 | Toda decisión de diseño o funcionalidad nueva pasa por una lista de verificación de privacidad (¿qué dato nuevo?, ¿para qué?, ¿cuánto se retiene?, ¿quién accede?) en el pull request. | R5, R10 |
-| RD-17 | Revisión periódica de privacidad (ej.: cada 6 meses y ante cambios mayores): actualizar esta DPIA, revisar accesos y verificar que se cumplen las restricciones. | R10 |
-| RD-18 | Retención limitada: los datos se eliminan automáticamente tras un plazo definido (ej.: cuentas inactivas por 24 meses, previo aviso). Un job programado purga registros vencidos, incluidas copias de seguridad según su ciclo de rotación. | R6 |
-
-### 4.6 Extras
-
-| ID | Restricción | Mitiga |
-|---|---|---|
-| RD-19 | `GET /me/export` permite descargar todos los datos del usuario en formato legible y portable (JSON o CSV), previa reautenticación. | R4 |
-| RD-20 | Protocolo de brechas: responsable designado, canal de reporte interno, evaluación en menos de 24 h, notificación a las personas afectadas y a la autoridad de protección de datos en el plazo legal (en Perú, la Autoridad Nacional de Protección de Datos Personales), y registro del incidente con lecciones aprendidas. | R9 |
-| RD-21 | Formación del equipo en privacidad y seguridad: inducción para nuevos integrantes y refresco periódico (ej.: anual), con registro de asistencia. | R10 |
-
----
-
-## 5. Cobertura del checklist
-
-| Ítem del checklist | Restricción |
-|---|---|
-| Mecanismo claro de consentimiento antes de recopilar | RD-01 |
-| Formularios que especifiquen para qué se usan los datos | RD-02 |
-| Evitar recopilar datos innecesarios | RD-03 |
-| Interfaz para acceder a los datos almacenados | RD-04 |
-| Opciones para editar o corregir datos | RD-05 |
-| Eliminar cuenta y todos los datos asociados | RD-06 |
-| Restringir el uso de datos (máximo 2) | RD-07 |
-| Cifrado en la base de datos | RD-08 |
-| Hashing seguro de contraseñas | RD-09 |
-| Autenticación de dos factores para cuentas sensibles/administrativas | RD-10 |
-| Firewalls o protección contra intrusos | RD-11 |
-| Política de privacidad accesible en el front | RD-12 |
-| Política clara y fácil de entender | RD-13 |
-| Informar cambios en la política | RD-14 |
-| Privacidad desde la fase inicial de BD y front | RD-15 |
-| Privacidad en todas las decisiones de diseño | RD-16 |
-| Revisiones periódicas de privacidad | RD-17 |
-| Eliminar datos antiguos o innecesarios | RD-18 |
-| Descarga de todos los datos en formato legible | RD-19 |
-| Protocolos ante brechas de seguridad | RD-20 |
-| Formación continua del equipo | RD-21 |
-
----
-
-## 6. Riesgo residual y decisión
-
-Si se cumplen RD-01 a RD-21, los riesgos críticos (R1, R2) bajan a **Bajo/Medio** y los altos (R3–R7, R9) a **Medio/Bajo**.
-
-**Decisión:** el backend actual **no debe usarse en producción ni con datos reales**. Solo es válido como prototipo de aprendizaje. Para pasar a producción hay que implementar, como mínimo, RD-01, RD-04, RD-08, RD-11 y RD-12, y volver a evaluar esta DPIA.
-
-| Rol | Nombre | Fecha |
-|---|---|---|
-| Elaborado por | María Fernanda Lazón Meza | 2026-10-23 |
-| Elaborado por | Christopher Renato Pérez Torres | 2026-10-23 |
+*Nota: Una DPIA sin responsable identificado no tiene validez legal ni metodológica.*
